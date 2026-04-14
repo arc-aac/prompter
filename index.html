@@ -326,26 +326,16 @@ body {
 
 #prompterContent {
   flex: 1;
-  overflow: hidden;
-  position: relative;
-  touch-action: none;
-}
-
-#prompterContent.paused {
   overflow-y: auto;
-  touch-action: auto;
+  position: relative;
   -webkit-overflow-scrolling: touch;
 }
 
-#prompterContent.paused #prompterText {
-  position: relative;
+#prompterContent.playing {
+  touch-action: none;
 }
 
 #prompterText {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
   padding: 40px 30px;
   padding-bottom: 100vh;
   color: var(--fg);
@@ -571,8 +561,6 @@ const state = {
 };
 
 let scrolling = false;
-let scrollPos = 0;
-let scrollDirection = 1; // 1 = down, -1 = up
 let animFrameId = null;
 let lastTime = 0;
 
@@ -725,10 +713,9 @@ function startPrompter() {
   prompterText.textContent = text;
   applyPrompterStyles();
 
-  scrollPos = 0;
-  scrollDirection = 1;
   scrolling = false;
-  prompterText.style.transform = `translateY(0px)`;
+  prompterContent.scrollTop = 0;
+  prompterContent.classList.remove('playing');
 
   // Sync prompter controls bar
   $('#pFontSize').value = state.fontSize;
@@ -834,13 +821,7 @@ function scrollLoop(timestamp) {
   lastTime = timestamp;
 
   const pps = getPixelsPerSecond();
-  scrollPos += pps * delta * scrollDirection;
-
-  const maxScroll = prompterText.scrollHeight - prompterContent.clientHeight;
-  if (scrollPos < 0) scrollPos = 0;
-  if (scrollPos > maxScroll) scrollPos = maxScroll;
-
-  prompterText.style.transform = `translateY(${-scrollPos}px)`;
+  prompterContent.scrollTop += pps * delta;
   animFrameId = requestAnimationFrame(scrollLoop);
 }
 
@@ -859,9 +840,9 @@ function onPointerDown(x, y) {
 
   longPressTimer = setTimeout(() => {
     gestureHandled = true;
-    scrollPos = 0;
-    prompterText.style.transform = 'translateY(0px)';
+    prompterContent.scrollTop = 0;
     scrolling = false;
+    prompterContent.classList.remove('playing');
     showStatus('Back to start');
   }, 1000);
 }
@@ -912,19 +893,13 @@ function onPointerUp(x, y) {
 function toggleScroll() {
   scrolling = !scrolling;
   if (scrolling) {
-    // Sync scrollPos from manual scroll position
-    scrollPos = prompterContent.scrollTop;
-    prompterContent.classList.remove('paused');
-    prompterText.style.transform = `translateY(${-scrollPos}px)`;
+    prompterContent.classList.add('playing');
     if (!animFrameId) {
       lastTime = 0;
       animFrameId = requestAnimationFrame(scrollLoop);
     }
   } else {
-    // Switch to native scroll for manual positioning
-    prompterContent.classList.add('paused');
-    prompterText.style.transform = 'none';
-    prompterContent.scrollTop = scrollPos;
+    prompterContent.classList.remove('playing');
   }
   showStatus(scrolling ? 'Playing' : 'Paused');
 }
