@@ -37,7 +37,6 @@ body {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -329,6 +328,7 @@ body {
   flex: 1;
   overflow: hidden;
   position: relative;
+  touch-action: none;
 }
 
 #prompterText {
@@ -377,6 +377,7 @@ body {
   gap: 6px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  touch-action: auto;
 }
 
 #prompter.active #prompterControls.open {
@@ -758,6 +759,13 @@ $('#prompterExit').addEventListener('click', exitPrompter);
 $('#btnToggleControls').addEventListener('click', () => {
   $('#prompterControls').classList.toggle('open');
 });
+
+// Stop touch events on controls from triggering prompter gestures
+$('#prompterControls').addEventListener('touchstart', (e) => e.stopPropagation());
+$('#prompterControls').addEventListener('touchmove', (e) => e.stopPropagation());
+$('#prompterControls').addEventListener('touchend', (e) => e.stopPropagation());
+$('#prompterControls').addEventListener('mousedown', (e) => e.stopPropagation());
+$('#prompterControls').addEventListener('mouseup', (e) => e.stopPropagation());
 
 $('#pFontSize').addEventListener('input', (e) => {
   state.fontSize = parseInt(e.target.value);
