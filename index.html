@@ -532,9 +532,20 @@ body {
       <span class="ctrl-val" id="pLineHeightVal">1.6</span>
     </div>
     <div class="ctrl-row">
+      <label>Spacing</label>
+      <input type="range" id="pLetterSpacing" min="0" max="20" value="0" step="0.5">
+      <span class="ctrl-val" id="pLetterSpacingVal">0px</span>
+    </div>
+    <div class="ctrl-row">
       <label>Speed</label>
       <input type="range" id="pSpeed" min="1" max="100" value="30">
       <span class="ctrl-val" id="pSpeedVal">30%</span>
+    </div>
+    <div class="ctrl-row">
+      <label>Align</label>
+      <button id="pAlignLeft">L</button>
+      <button id="pAlignCenter">C</button>
+      <button id="pAlignRight">R</button>
     </div>
     <div class="ctrl-row">
       <label>Mirror</label>
@@ -724,8 +735,13 @@ function startPrompter() {
   $('#pFontSizeVal').textContent = state.fontSize + 'px';
   $('#pLineHeight').value = state.lineHeight;
   $('#pLineHeightVal').textContent = (state.lineHeight / 100).toFixed(1);
+  $('#pLetterSpacing').value = state.letterSpacing;
+  $('#pLetterSpacingVal').textContent = state.letterSpacing + 'px';
   $('#pSpeed').value = state.speed;
   $('#pSpeedVal').textContent = state.speed + '%';
+  $('#pAlignLeft').classList.toggle('on', state.align === 'left');
+  $('#pAlignCenter').classList.toggle('on', state.align === 'center');
+  $('#pAlignRight').classList.toggle('on', state.align === 'right');
   $('#pFlipX').classList.toggle('on', state.flipX);
   $('#prompterControls').classList.remove('open');
 
@@ -784,6 +800,15 @@ $('#pLineHeight').addEventListener('input', (e) => {
   saveSettings();
 });
 
+$('#pLetterSpacing').addEventListener('input', (e) => {
+  state.letterSpacing = parseFloat(e.target.value);
+  $('#pLetterSpacingVal').textContent = state.letterSpacing + 'px';
+  $('#letterSpacing').value = state.letterSpacing;
+  $('#letterSpacingVal').textContent = state.letterSpacing + 'px';
+  prompterText.style.letterSpacing = state.letterSpacing + 'px';
+  saveSettings();
+});
+
 $('#pSpeed').addEventListener('input', (e) => {
   state.speed = parseInt(e.target.value);
   $('#pSpeedVal').textContent = state.speed + '%';
@@ -791,6 +816,20 @@ $('#pSpeed').addEventListener('input', (e) => {
   $('#scrollSpeedVal').textContent = state.speed + '%';
   saveSettings();
 });
+
+function syncAlignButtons(align) {
+  state.align = align;
+  prompterText.style.textAlign = align;
+  $$('#alignGroup button').forEach(b => b.classList.toggle('active', b.dataset.align === align));
+  $('#pAlignLeft').classList.toggle('on', align === 'left');
+  $('#pAlignCenter').classList.toggle('on', align === 'center');
+  $('#pAlignRight').classList.toggle('on', align === 'right');
+  saveSettings();
+}
+
+$('#pAlignLeft').addEventListener('click', () => syncAlignButtons('left'));
+$('#pAlignCenter').addEventListener('click', () => syncAlignButtons('center'));
+$('#pAlignRight').addEventListener('click', () => syncAlignButtons('right'));
 
 $('#pFlipX').addEventListener('click', () => {
   state.flipX = !state.flipX;
