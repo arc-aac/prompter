@@ -563,6 +563,7 @@ const state = {
 let scrolling = false;
 let animFrameId = null;
 let lastTime = 0;
+let scrollAccum = 0; // sub-pixel accumulator
 
 // ── DOM ──
 const $ = (s) => document.querySelector(s);
@@ -714,6 +715,7 @@ function startPrompter() {
   applyPrompterStyles();
 
   scrolling = false;
+  scrollAccum = 0;
   prompterContent.scrollTop = 0;
   prompterContent.classList.remove('playing');
 
@@ -805,8 +807,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── Scroll Animation ──
+// Speed 1%=0.2px/s, 50%=25px/s, 100%=150px/s (exponential curve for fine control at low speeds)
 function getPixelsPerSecond() {
-  return 0.5 + (state.speed - 1) * (49.5 / 99);
+  const t = state.speed / 100; // 0.01 ~ 1.0
+  return 0.2 + 149.8 * t * t;
 }
 
 function scrollLoop(timestamp) {
@@ -821,7 +825,12 @@ function scrollLoop(timestamp) {
   lastTime = timestamp;
 
   const pps = getPixelsPerSecond();
-  prompterContent.scrollTop += pps * delta;
+  scrollAccum += pps * delta;
+  const px = Math.floor(scrollAccum);
+  if (px >= 1) {
+    prompterContent.scrollTop += px;
+    scrollAccum -= px;
+  }
   animFrameId = requestAnimationFrame(scrollLoop);
 }
 
