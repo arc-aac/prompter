@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Prompter</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #000;
+  --fg: #fff;
+  --ui-bg: #1a1a1a;
+  --ui-border: #333;
+  --ui-text: #ccc;
+  --accent: #4a9eff;
+}
+
+.theme-light {
+  --bg: #fff;
+  --fg: #000;
+  --ui-bg: #f0f0f0;
+  --ui-border: #ccc;
+  --ui-text: #333;
+  --accent: #0066cc;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Editor Mode ── */
+#editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px;
+  gap: 10px;
+}
+
+#editor .toolbar {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#editor .toolbar button,
+#editor .toolbar select {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#editor .toolbar button:active {
+  opacity: 0.7;
+}
+
+#editor .toolbar button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+#scriptArea {
+  flex: 1;
+  background: var(--ui-bg);
+  color: var(--fg);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 18px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#playBtn {
+  flex-shrink: 0;
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 14px !important;
+  font-size: 18px !important;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+/* ── Settings Panel ── */
+#settingsPanel {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+#settingsPanel.open {
+  display: flex;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting-row label {
+  color: var(--ui-text);
+  font-size: 13px;
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.setting-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.setting-row .value-display {
+  color: var(--ui-text);
+  font-size: 13px;
+  min-width: 50px;
+  text-align: right;
+}
+
+.setting-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.setting-group button {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.setting-group button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ── Scripts Modal ── */
+#scriptsModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+#scriptsModal.open {
+  display: flex;
+}
+
+#scriptsModal .modal-content {
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#scriptsModal h2 {
+  color: var(--fg);
+  font-size: 18px;
+}
+
+#scriptsModal .save-row {
+  display: flex;
+  gap: 8px;
+}
+
+#scriptsModal .save-row input {
+  flex: 1;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+#scriptsModal .save-row button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#scriptsList {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.script-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.script-item:active {
+  opacity: 0.7;
+}
+
+.script-item .script-name {
+  flex: 1;
+  color: var(--fg);
+  font-size: 14px;
+}
+
+.script-item .script-date {
+  color: var(--ui-text);
+  font-size: 12px;
+}
+
+.script-item .script-delete {
+  background: none;
+  border: none;
+  color: #e55;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+#scriptsModal .close-btn {
+  background: var(--ui-border);
+  color: var(--ui-text);
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ── Prompter Mode ── */
+#prompter {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 200;
+  flex-direction: column;
+}
+
+#prompter.active {
+  display: flex;
+}
+
+#prompterExit {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 210;
+  background: rgba(128,128,128,0.4);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+#prompter.active #prompterExit {
+  display: flex;
+}
+
+#prompterContent {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+#prompterText {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 40px 30px;
+  padding-bottom: 100vh;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#prompterStatus {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 210;
+  background: rgba(128,128,128,0.5);
+  color: #fff;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#prompterStatus.show {
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Editor Mode ── -->
+<div id="editor">
+  <div class="toolbar">
+    <button id="btnSettings">Settings</button>
+    <button id="btnScripts">Scripts</button>
+    <select id="themeSelect">
+      <option value="dark">Dark</option>
+      <option value="light">Light</option>
+    </select>
+  </div>
+
+  <div id="settingsPanel">
+    <div class="setting-row">
+      <label>Font Size</label>
+      <input type="range" id="fontSize" min="24" max="120" value="48">
+      <span class="value-display" id="fontSizeVal">48px</span>
+    </div>
+    <div class="setting-row">
+      <label>Align</label>
+      <div class="setting-group" id="alignGroup">
+        <button data-align="left">Left</button>
+        <button data-align="center" class="active">Center</button>
+        <button data-align="right">Right</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label>Spacing</label>
+      <input type="range" id="letterSpacing" min="0" max="20" value="0" step="0.5">
+      <span class="value-display" id="letterSpacingVal">0px</span>
+    </div>
+    <div class="setting-row">
+      <label>Line Height</label>
+      <input type="range" id="lineHeight" min="1.0" max="3.0" value="1.6" step="0.1">
+      <span class="value-display" id="lineHeightVal">1.6</span>
+    </div>
+    <div class="setting-row">
+      <label>Speed</label>
+      <input type="range" id="scrollSpeed" min="1" max="100" value="30">
+      <span class="value-display" id="scrollSpeedVal">30%</span>
+    </div>
+    <div class="setting-row">
+      <label>Mirror</label>
+      <div class="setting-group">
+        <button id="btnFlipX">Flip H</button>
+        <button id="btnFlipY">Flip V</button>
+      </div>
+    </div>
+  </div>
+
+  <textarea id="scriptArea" placeholder="Enter your script here..."></textarea>
+  <button id="playBtn">Play</button>
+</div>
+
+<!-- ── Scripts Modal ── -->
+<div id="scriptsModal">
+  <div class="modal-content">
+    <h2>Scripts</h2>
+    <div class="save-row">
+      <input type="text" id="scriptName" placeholder="Script name">
+      <button id="saveScriptBtn">Save</button>
+    </div>
+    <div id="scriptsList"></div>
+    <button class="close-btn" id="closeScriptsBtn">Close</button>
+  </div>
+</div>
+
+<!-- ── Prompter Mode ── -->
+<div id="prompter">
+  <button id="prompterExit">&times;</button>
+  <div id="prompterContent">
+    <div id="prompterText"></div>
+  </div>
+  <div id="prompterStatus"></div>
+</div>
+
+<script>
+// ── State ──
+const state = {
+  fontSize: 48,
+  align: 'center',
+  letterSpacing: 0,
+  lineHeight: 1.6,
+  speed: 30,
+  flipX: false,
+  flipY: false,
+  theme: 'dark',
+};
+
+let scrolling = false;
+let scrollPos = 0;
+let scrollDirection = 1; // 1 = down, -1 = up
+let animFrameId = null;
+let lastTime = 0;
+
+// ── DOM ──
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+const editor = $('#editor');
+const scriptArea = $('#scriptArea');
+const settingsPanel = $('#settingsPanel');
+const prompter = $('#prompter');
+const prompterText = $('#prompterText');
+const prompterContent = $('#prompterContent');
+const prompterStatus = $('#prompterStatus');
+
+// ── Theme ──
+$('#themeSelect').addEventListener('change', (e) => {
+  state.theme = e.target.value;
+  document.body.classList.toggle('theme-light', state.theme === 'light');
+  saveSettings();
+});
+
+// ── Settings Toggle ──
+$('#btnSettings').addEventListener('click', () => {
+  settingsPanel.classList.toggle('open');
+  $('#btnSettings').classList.toggle('active', settingsPanel.classList.contains('open'));
+});
+
+// ── Font Size ──
+$('#fontSize').addEventListener('input', (e) => {
+  state.fontSize = parseInt(e.target.value);
+  $('#fontSizeVal').textContent = state.fontSize + 'px';
+  saveSettings();
+});
+
+// ── Align ──
+$$('#alignGroup button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    $$('#alignGroup button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.align = btn.dataset.align;
+    saveSettings();
+  });
+});
+
+// ── Letter Spacing ──
+$('#letterSpacing').addEventListener('input', (e) => {
+  state.letterSpacing = parseFloat(e.target.value);
+  $('#letterSpacingVal').textContent = state.letterSpacing + 'px';
+  saveSettings();
+});
+
+// ── Line Height ──
+$('#lineHeight').addEventListener('input', (e) => {
+  state.lineHeight = parseFloat(e.target.value);
+  $('#lineHeightVal').textContent = state.lineHeight.toFixed(1);
+  saveSettings();
+});
+
+// ── Speed ──
+$('#scrollSpeed').addEventListener('input', (e) => {
+  state.speed = parseInt(e.target.value);
+  $('#scrollSpeedVal').textContent = state.speed + '%';
+  saveSettings();
+});
+
+// ── Flip ──
+$('#btnFlipX').addEventListener('click', () => {
+  state.flipX = !state.flipX;
+  $('#btnFlipX').classList.toggle('active', state.flipX);
+  saveSettings();
+});
+
+$('#btnFlipY').addEventListener('click', () => {
+  state.flipY = !state.flipY;
+  $('#btnFlipY').classList.toggle('active', state.flipY);
+  saveSettings();
+});
+
+// ── Scripts ──
+$('#btnScripts').addEventListener('click', () => {
+  $('#scriptsModal').classList.add('open');
+  renderScriptsList();
+});
+
+$('#closeScriptsBtn').addEventListener('click', () => {
+  $('#scriptsModal').classList.remove('open');
+});
+
+$('#saveScriptBtn').addEventListener('click', () => {
+  const name = $('#scriptName').value.trim();
+  const text = scriptArea.value.trim();
+  if (!name) return;
+  if (!text) return;
+
+  const scripts = JSON.parse(localStorage.getItem('prompter_scripts') || '[]');
+  scripts.unshift({ name, text, createdAt: new Date().toISOString() });
+  localStorage.setItem('prompter_scripts', JSON.stringify(scripts));
+  $('#scriptName').value = '';
+  renderScriptsList();
+});
+
+function renderScriptsList() {
+  const scripts = JSON.parse(localStorage.getItem('prompter_scripts') || '[]');
+  const list = $('#scriptsList');
+  list.innerHTML = '';
+
+  if (scripts.length === 0) {
+    list.innerHTML = '<div style="color:var(--ui-text);font-size:13px;padding:10px;text-align:center;">No saved scripts</div>';
+    return;
+  }
+
+  scripts.forEach((s, i) => {
+    const item = document.createElement('div');
+    item.className = 'script-item';
+    const date = new Date(s.createdAt).toLocaleDateString();
+    item.innerHTML = `
+      <span class="script-name">${escapeHtml(s.name)}</span>
+      <span class="script-date">${date}</span>
+      <button class="script-delete" data-index="${i}">&times;</button>
+    `;
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('script-delete')) return;
+      scriptArea.value = s.text;
+      $('#scriptsModal').classList.remove('open');
+    });
+    item.querySelector('.script-delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      scripts.splice(i, 1);
+      localStorage.setItem('prompter_scripts', JSON.stringify(scripts));
+      renderScriptsList();
+    });
+    list.appendChild(item);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── Play / Prompter ──
+$('#playBtn').addEventListener('click', startPrompter);
+
+function startPrompter() {
+  const text = scriptArea.value.trim();
+  if (!text) return;
+
+  prompterText.textContent = text;
+  applyPrompterStyles();
+
+  scrollPos = 0;
+  scrollDirection = 1;
+  scrolling = false;
+  prompterText.style.transform = `translateY(0px)`;
+
+  prompter.classList.add('active');
+  showStatus('Tap to start');
+}
+
+function applyPrompterStyles() {
+  prompterText.style.fontSize = state.fontSize + 'px';
+  prompterText.style.textAlign = state.align;
+  prompterText.style.letterSpacing = state.letterSpacing + 'px';
+  prompterText.style.lineHeight = state.lineHeight;
+
+  const transforms = [];
+  if (state.flipX) transforms.push('scaleX(-1)');
+  if (state.flipY) transforms.push('scaleY(-1)');
+  prompterContent.style.transform = transforms.length ? transforms.join(' ') : 'none';
+}
+
+function exitPrompter() {
+  prompter.classList.remove('active');
+  scrolling = false;
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  animFrameId = null;
+}
+
+$('#prompterExit').addEventListener('click', exitPrompter);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && prompter.classList.contains('active')) {
+    exitPrompter();
+  }
+});
+
+// ── Scroll Animation ──
+function getPixelsPerSecond() {
+  return 0.5 + (state.speed - 1) * (49.5 / 99);
+}
+
+function scrollLoop(timestamp) {
+  if (!scrolling) {
+    animFrameId = requestAnimationFrame(scrollLoop);
+    lastTime = timestamp;
+    return;
+  }
+
+  if (!lastTime) lastTime = timestamp;
+  const delta = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+  const pps = getPixelsPerSecond();
+  scrollPos += pps * delta * scrollDirection;
+
+  const maxScroll = prompterText.scrollHeight - prompterContent.clientHeight;
+  if (scrollPos < 0) scrollPos = 0;
+  if (scrollPos > maxScroll) scrollPos = maxScroll;
+
+  prompterText.style.transform = `translateY(${-scrollPos}px)`;
+  animFrameId = requestAnimationFrame(scrollLoop);
+}
+
+// ── Touch Gestures (Prompter) ──
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+let longPressTimer = null;
+let gestureHandled = false;
+
+prompterContent.addEventListener('touchstart', (e) => {
+  if (!prompter.classList.contains('active')) return;
+  e.preventDefault();
+
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = Date.now();
+  gestureHandled = false;
+
+  longPressTimer = setTimeout(() => {
+    gestureHandled = true;
+    scrollPos = 0;
+    prompterText.style.transform = 'translateY(0px)';
+    scrolling = false;
+    showStatus('Back to start');
+  }, 1000);
+}, { passive: false });
+
+prompterContent.addEventListener('touchmove', (e) => {
+  if (!prompter.classList.contains('active')) return;
+  e.preventDefault();
+
+  const dx = e.touches[0].clientX - touchStartX;
+  const dy = e.touches[0].clientY - touchStartY;
+
+  if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+}, { passive: false });
+
+prompterContent.addEventListener('touchend', (e) => {
+  if (!prompter.classList.contains('active')) return;
+  e.preventDefault();
+
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+
+  if (gestureHandled) return;
+
+  const endX = e.changedTouches[0].clientX;
+  const endY = e.changedTouches[0].clientY;
+  const dx = endX - touchStartX;
+  const dy = endY - touchStartY;
+  const elapsed = Date.now() - touchStartTime;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < 15 && elapsed < 300) {
+    // Tap — toggle scroll
+    scrolling = !scrolling;
+    if (scrolling && !animFrameId) {
+      lastTime = 0;
+      animFrameId = requestAnimationFrame(scrollLoop);
+    }
+    showStatus(scrolling ? 'Playing' : 'Paused');
+    return;
+  }
+
+  if (dist > 50) {
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    if (absDx > absDy) {
+      // Horizontal swipe
+      if (dx > 0) {
+        state.speed = Math.min(100, state.speed + 5);
+        showStatus('Speed: ' + state.speed + '%');
+      } else {
+        state.speed = Math.max(1, state.speed - 5);
+        showStatus('Speed: ' + state.speed + '%');
+      }
+      $('#scrollSpeed').value = state.speed;
+      $('#scrollSpeedVal').textContent = state.speed + '%';
+      saveSettings();
+    } else {
+      // Vertical swipe down
+      if (dy > 0) {
+        scrollDirection *= -1;
+        showStatus(scrollDirection > 0 ? 'Scroll: Down' : 'Scroll: Up');
+      }
+    }
+  }
+}, { passive: false });
+
+// ── Status Toast ──
+let statusTimer = null;
+function showStatus(msg) {
+  prompterStatus.textContent = msg;
+  prompterStatus.classList.add('show');
+  if (statusTimer) clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => {
+    prompterStatus.classList.remove('show');
+  }, 1500);
+}
+
+// ── Keyboard (desktop fallback) ──
+document.addEventListener('keydown', (e) => {
+  if (!prompter.classList.contains('active')) return;
+  if (e.key === ' ') {
+    e.preventDefault();
+    scrolling = !scrolling;
+    if (scrolling && !animFrameId) {
+      lastTime = 0;
+      animFrameId = requestAnimationFrame(scrollLoop);
+    }
+    showStatus(scrolling ? 'Playing' : 'Paused');
+  }
+});
+
+// ── Save/Load Settings ──
+function saveSettings() {
+  localStorage.setItem('prompter_settings', JSON.stringify(state));
+}
+
+function loadSettings() {
+  const saved = localStorage.getItem('prompter_settings');
+  if (!saved) return;
+  try {
+    const s = JSON.parse(saved);
+    Object.assign(state, s);
+
+    // Apply to UI
+    $('#fontSize').value = state.fontSize;
+    $('#fontSizeVal').textContent = state.fontSize + 'px';
+
+    $$('#alignGroup button').forEach(b => {
+      b.classList.toggle('active', b.dataset.align === state.align);
+    });
+
+    $('#letterSpacing').value = state.letterSpacing;
+    $('#letterSpacingVal').textContent = state.letterSpacing + 'px';
+
+    $('#lineHeight').value = state.lineHeight;
+    $('#lineHeightVal').textContent = state.lineHeight.toFixed(1);
+
+    $('#scrollSpeed').value = state.speed;
+    $('#scrollSpeedVal').textContent = state.speed + '%';
+
+    $('#btnFlipX').classList.toggle('active', state.flipX);
+    $('#btnFlipY').classList.toggle('active', state.flipY);
+
+    $('#themeSelect').value = state.theme;
+    document.body.classList.toggle('theme-light', state.theme === 'light');
+  } catch (e) {}
+}
+
+// ── Save last script text ──
+scriptArea.addEventListener('input', () => {
+  localStorage.setItem('prompter_lastScript', scriptArea.value);
+});
+
+function loadLastScript() {
+  const saved = localStorage.getItem('prompter_lastScript');
+  if (saved) scriptArea.value = saved;
+}
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// ── Init ──
+loadSettings();
+loadLastScript();
+</script>
+</body>
+</html>
