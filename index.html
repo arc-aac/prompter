@@ -331,6 +331,16 @@ body {
   touch-action: none;
 }
 
+#prompterContent.paused {
+  overflow-y: auto;
+  touch-action: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#prompterContent.paused #prompterText {
+  position: relative;
+}
+
 #prompterText {
   position: absolute;
   top: 0;
@@ -895,18 +905,26 @@ function onPointerUp(x, y) {
       $('#scrollSpeed').value = state.speed;
       $('#scrollSpeedVal').textContent = state.speed + '%';
       saveSettings();
-    } else if (dy > 0) {
-      scrollDirection *= -1;
-      showStatus(scrollDirection > 0 ? 'Scroll: Down' : 'Scroll: Up');
     }
   }
 }
 
 function toggleScroll() {
   scrolling = !scrolling;
-  if (scrolling && !animFrameId) {
-    lastTime = 0;
-    animFrameId = requestAnimationFrame(scrollLoop);
+  if (scrolling) {
+    // Sync scrollPos from manual scroll position
+    scrollPos = prompterContent.scrollTop;
+    prompterContent.classList.remove('paused');
+    prompterText.style.transform = `translateY(${-scrollPos}px)`;
+    if (!animFrameId) {
+      lastTime = 0;
+      animFrameId = requestAnimationFrame(scrollLoop);
+    }
+  } else {
+    // Switch to native scroll for manual positioning
+    prompterContent.classList.add('paused');
+    prompterText.style.transform = 'none';
+    prompterContent.scrollTop = scrollPos;
   }
   showStatus(scrolling ? 'Playing' : 'Paused');
 }
