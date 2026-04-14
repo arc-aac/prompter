@@ -96,25 +96,17 @@ body {
   user-select: text;
 }
 
-#playBtn, #newScriptBtn {
+#playBtn {
   flex-shrink: 0;
+  background: var(--accent);
+  color: #fff;
   border: none;
   border-radius: 12px;
   padding: 14px;
   font-size: 18px;
   font-weight: 600;
   cursor: pointer;
-}
-
-#playBtn {
-  background: var(--accent);
-  color: #fff;
-}
-
-#newScriptBtn {
-  background: var(--ui-bg);
-  color: var(--ui-text);
-  border: 1px solid var(--ui-border);
+  width: 100%;
 }
 
 /* ── Settings Panel ── */
@@ -463,13 +455,17 @@ body {
   <div class="toolbar">
     <button id="btnSettings">Settings</button>
     <button id="btnScripts">Scripts</button>
-    <select id="themeSelect">
-      <option value="dark">Dark</option>
-      <option value="light">Light</option>
-    </select>
+    <button id="newScriptBtn">New</button>
   </div>
 
   <div id="settingsPanel">
+    <div class="setting-row">
+      <label>Theme</label>
+      <div class="setting-group" id="themeGroup">
+        <button data-theme="dark" class="active">Dark</button>
+        <button data-theme="light">Light</button>
+      </div>
+    </div>
     <div class="setting-row">
       <label>Font Size</label>
       <input type="range" id="fontSize" min="24" max="120" value="48">
@@ -508,10 +504,7 @@ body {
   </div>
 
   <textarea id="scriptArea" placeholder="Enter your script here..."></textarea>
-  <div style="display:flex;gap:8px;">
-    <button id="newScriptBtn" style="flex:1;">New Script</button>
-    <button id="playBtn" style="flex:1;">Play</button>
-  </div>
+  <button id="playBtn">Play</button>
 </div>
 
 <!-- ── Scripts Modal ── -->
@@ -600,10 +593,14 @@ const prompterContent = $('#prompterContent');
 const prompterStatus = $('#prompterStatus');
 
 // ── Theme ──
-$('#themeSelect').addEventListener('change', (e) => {
-  state.theme = e.target.value;
-  document.body.classList.toggle('theme-light', state.theme === 'light');
-  saveSettings();
+$$('#themeGroup button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    $$('#themeGroup button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.theme = btn.dataset.theme;
+    document.body.classList.toggle('theme-light', state.theme === 'light');
+    saveSettings();
+  });
 });
 
 // ── New Script ──
@@ -1111,7 +1108,7 @@ function loadSettings() {
     $('#btnFlipX').classList.toggle('active', state.flipX);
     $('#btnFlipY').classList.toggle('active', state.flipY);
 
-    $('#themeSelect').value = state.theme;
+    $$('#themeGroup button').forEach(b => b.classList.toggle('active', b.dataset.theme === state.theme));
     document.body.classList.toggle('theme-light', state.theme === 'light');
   } catch (e) {}
 }
