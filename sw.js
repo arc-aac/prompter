@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prompter-v5';
+const CACHE_NAME = 'prompter-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -22,17 +22,15 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network-first: try network, fall back to cache (offline support)
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request).then((response) => {
-        if (response.ok && e.request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
-        }
-        return response;
-      });
-    }).catch(() => caches.match('./index.html'))
+    fetch(e.request).then((response) => {
+      if (response.ok && e.request.method === 'GET') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(e.request).then((cached) => cached || caches.match('./index.html')))
   );
 });
