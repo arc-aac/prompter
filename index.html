@@ -446,6 +446,19 @@ body {
 #prompter.active #btnToggleControls {
   display: flex;
 }
+
+#prompterExit { z-index: 230; }
+#prompterControls { padding-top: 50px; }
+#remoteDialog { background: var(--ui-bg); color: var(--fg); border: 1px solid var(--ui-border); border-radius: 12px; width: min(94vw, 540px); max-height: 90dvh; overflow: auto; padding: 20px; margin: auto; user-select: text; }
+#remoteDialog::backdrop { background: #000a; }
+#remoteDialog h2 { font-size: 20px; margin-bottom: 12px; }
+#remoteDialog p { font-size: 14px; line-height: 1.6; margin: 10px 0; }
+.remote-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 8px 0; }
+#remoteDialog button { color: var(--fg); background: var(--ui-border); border: 1px solid var(--ui-text); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+#remoteDialog button:focus-visible { outline: 2px solid var(--accent); }
+.remote-row button { min-width: 130px; }
+#remoteFeedback { overflow-wrap: anywhere; min-height: 48px; color: var(--accent); }
+#remoteDialog .remote-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 </style>
 </head>
 <body>
@@ -456,6 +469,7 @@ body {
     <button id="btnSettings">Settings</button>
     <button id="btnScripts">Scripts</button>
     <button id="newScriptBtn">New</button>
+    <button id="btnRemote">리모컨</button>
   </div>
 
   <div id="settingsPanel">
@@ -520,6 +534,16 @@ body {
   </div>
 </div>
 
+
+<dialog id="remoteDialog" aria-labelledby="remoteTitle">
+  <h2 id="remoteTitle">블루투스 리모컨 설정</h2>
+  <p>기기의 블루투스 설정에서 리모컨을 먼저 연결하세요. 아래 기능의 등록 버튼을 누른 다음 리모컨 버튼을 한 번 누르면 저장됩니다.</p>
+  <div id="remoteBindings"></div>
+  <p id="remoteFeedback" role="status" aria-live="polite">리모컨 버튼을 누르면 여기에서 수신한 키를 확인할 수 있습니다.</p>
+  <p>기본 키: Space/Enter = 재생·정지, ↑/↓ 또는 Page Up/Down = 페이지 이동, ←/→ 또는 −/+ = 속도 조절, Home = 처음, Escape = 종료.</p>
+  <p>키가 표시되지 않으면 기기가 신호를 웹앱에 전달하지 않는 상태입니다. 리모컨의 키보드 모드가 있다면 전환해 보세요. 휴대폰 홈·전원·볼륨 버튼과 미디어 버튼은 기기와 브라우저에 따라 사용할 수 없습니다.</p>
+  <div class="remote-actions"><button id="remoteCancel" type="button">등록 취소</button><button id="remoteReset" type="button">기본값 복원</button><button id="remoteClose" type="button">닫기</button></div>
+</dialog>
 <!-- ── Prompter Mode ── -->
 <div id="prompter">
   <button id="btnToggleControls">&#9881;</button>
@@ -772,6 +796,8 @@ function startPrompter() {
   $('#prompterControls').classList.remove('open');
 
   prompter.classList.add('active');
+  document.activeElement?.blur();
+  syncRemoteMedia();
   showStatus('Tap to start');
 }
 
@@ -792,6 +818,8 @@ function exitPrompter() {
   scrolling = false;
   if (animFrameId) cancelAnimationFrame(animFrameId);
   animFrameId = null;
+  prompterContent.classList.remove('playing');
+  syncRemoteMedia();
 }
 
 $('#prompterExit').addEventListener('click', exitPrompter);
@@ -865,11 +893,7 @@ $('#pFlipX').addEventListener('click', () => {
   saveSettings();
 });
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && prompter.classList.contains('active')) {
-    exitPrompter();
-  }
-});
+
 
 // ── Scroll Animation ──
 // Speed 1%=0.2px/s, 50%=25px/s, 100%=150px/s (exponential curve for fine control at low speeds)
@@ -975,6 +999,7 @@ function toggleScroll() {
   } else {
     prompterContent.classList.remove('playing');
   }
+  syncRemoteMedia();
   showStatus(scrolling ? 'Playing' : 'Paused');
 }
 
@@ -1062,19 +1087,171 @@ function showStatus(msg) {
   }, 1500);
 }
 
-// ── Keyboard (desktop fallback) ──
-document.addEventListener('keydown', (e) => {
-  if (!prompter.classList.contains('active')) return;
-  if (e.key === ' ') {
-    e.preventDefault();
-    scrolling = !scrolling;
-    if (scrolling && !animFrameId) {
-      lastTime = 0;
-      animFrameId = requestAnimationFrame(scrollLoop);
-    }
-    showStatus(scrolling ? 'Playing' : 'Paused');
+// Bluetooth HID remotes arrive as keyboard input after OS pairing.
+const remoteActions = {
+  toggle: '재생·정지', faster: '속도 +', slower: '속도 −',
+  up: '페이지 위', down: '페이지 아래', start: '처음으로',
+  menu: '설정 열기·닫기', exit: '프롬프터 종료'
+};
+const remoteDefaults = {
+  ' ': 'toggle', Enter: 'toggle', MediaPlayPause: 'toggle',
+  MediaPlay: 'play', MediaPause: 'pause', MediaStop: 'pause',
+  ArrowUp: 'up', PageUp: 'up', MediaTrackPrevious: 'up',
+  ArrowDown: 'down', PageDown: 'down', MediaTrackNext: 'down',
+  ArrowRight: 'faster', '+': 'faster', '=': 'faster', AudioVolumeUp: 'faster',
+  ArrowLeft: 'slower', '-': 'slower', AudioVolumeDown: 'slower',
+  Home: 'start', Escape: 'exit', ContextMenu: 'menu', m: 'menu'
+};
+const remoteStorageKey = 'prompter_remote_keys_v1';
+let remoteBindings = {};
+try {
+  const saved = JSON.parse(localStorage.getItem(remoteStorageKey) || '{}');
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+    Object.entries(saved).forEach(([key, action]) => {
+      if (Object.hasOwn(remoteActions, action)) remoteBindings[key] = action;
+    });
   }
+} catch (_) {}
+let pendingRemoteAction = null;
+const remoteDialog = $('#remoteDialog');
+function remoteKey(e) {
+  if (e.key && e.key !== 'Unidentified') return e.key === 'Spacebar' ? ' ' : e.key;
+  return e.code && e.code !== 'Unidentified' ? 'code:' + e.code : null;
+}
+function remoteKeyLabel(key) { return key === ' ' ? 'Space' : key; }
+function renderRemoteBindings() {
+  const list = $('#remoteBindings');
+  list.replaceChildren();
+  Object.entries(remoteActions).forEach(([action, label]) => {
+    const row = document.createElement('div');
+    row.className = 'remote-row';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const button = document.createElement('button');
+    button.type = 'button';
+    const keys = Object.keys(remoteBindings).filter(key => remoteBindings[key] === action);
+    button.textContent = keys.length ? keys.map(remoteKeyLabel).join(', ') : '등록';
+    button.setAttribute('aria-label', label + ' 버튼 등록');
+    button.addEventListener('click', () => {
+      pendingRemoteAction = action;
+      $('#remoteFeedback').textContent = label + ': 리모컨 버튼을 한 번 누르세요. (Esc = 취소)';
+      button.blur();
+    });
+    row.append(name, button);
+    list.append(row);
+  });
+}
+$('#btnRemote').addEventListener('click', () => {
+  pendingRemoteAction = null;
+  renderRemoteBindings();
+  remoteDialog.showModal();
 });
+$('#remoteClose').addEventListener('click', () => remoteDialog.close());
+remoteDialog.addEventListener('close', () => { pendingRemoteAction = null; });
+$('#remoteCancel').addEventListener('click', () => {
+  pendingRemoteAction = null;
+  $('#remoteFeedback').textContent = '등록을 취소했습니다. 버튼을 누르면 수신한 키를 확인할 수 있습니다.';
+});
+$('#remoteReset').addEventListener('click', () => {
+  remoteBindings = {};
+  pendingRemoteAction = null;
+  localStorage.removeItem(remoteStorageKey);
+  renderRemoteBindings();
+  $('#remoteFeedback').textContent = '기본 키 설정으로 복원했습니다.';
+});
+function changeRemoteSpeed(delta) {
+  state.speed = Math.max(1, Math.min(100, state.speed + delta));
+  $('#scrollSpeed').value = $('#pSpeed').value = state.speed;
+  $('#scrollSpeedVal').textContent = $('#pSpeedVal').textContent = state.speed + '%';
+  saveSettings();
+  showStatus('Speed: ' + state.speed + '%');
+}
+function runRemoteAction(action) {
+  if (!prompter.classList.contains('active')) return;
+  switch (action) {
+    case 'toggle': toggleScroll(); break;
+    case 'play': if (!scrolling) toggleScroll(); break;
+    case 'pause': if (scrolling) toggleScroll(); break;
+    case 'faster': changeRemoteSpeed(5); break;
+    case 'slower': changeRemoteSpeed(-5); break;
+    case 'up': case 'down':
+      prompterContent.scrollTop += (action === 'up' ? -1 : 1) * prompterContent.clientHeight * 0.8;
+      scrollAccum = 0;
+      showStatus(remoteActions[action]);
+      break;
+    case 'start':
+      if (scrolling) toggleScroll();
+      scrollAccum = 0;
+      prompterContent.scrollTop = 0;
+      showStatus('Back to start');
+      break;
+    case 'menu': $('#prompterControls').classList.toggle('open'); break;
+    case 'exit': exitPrompter(); break;
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+  const key = remoteKey(e);
+  if (!key || ['Shift', 'Control', 'Alt', 'Meta'].includes(key)) return;
+  if (remoteDialog.open) {
+    if (key === 'Escape') {
+      if (pendingRemoteAction) {
+        e.preventDefault();
+        pendingRemoteAction = null;
+        $('#remoteFeedback').textContent = '등록을 취소했습니다.';
+      }
+      return;
+    }
+    // Keep normal Tab navigation available in the dialog.
+    if (key === 'Tab') return;
+    if (!pendingRemoteAction && e.target.closest?.('button') && [' ', 'Enter'].includes(key)) {
+      $('#remoteFeedback').textContent = '수신한 키: ' + remoteKeyLabel(key);
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (pendingRemoteAction) {
+      const action = pendingRemoteAction;
+      Object.keys(remoteBindings).forEach(k => {
+        if (remoteBindings[k] === action) delete remoteBindings[k];
+      });
+      remoteBindings[key] = action;
+      localStorage.setItem(remoteStorageKey, JSON.stringify(remoteBindings));
+      pendingRemoteAction = null;
+      renderRemoteBindings();
+      $('#remoteFeedback').textContent = remoteActions[action] + ' 등록 완료: ' + remoteKeyLabel(key);
+    } else {
+      $('#remoteFeedback').textContent = '수신한 키: ' + remoteKeyLabel(key);
+    }
+    return;
+  }
+  if (!prompter.classList.contains('active')) return;
+  if (e.target.closest?.('textarea, input, select, [contenteditable="true"]')) return;
+  const action = remoteBindings[key] || remoteDefaults[key];
+  if (!action) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.repeat && !['faster', 'slower', 'up', 'down'].includes(action)) return;
+  runRemoteAction(action);
+}, true);
+
+// Best effort: only platforms that route media actions to this page can use these.
+function syncRemoteMedia() {
+  if (!navigator.mediaSession) return;
+  navigator.mediaSession.playbackState = prompter.classList.contains('active')
+    ? (scrolling ? 'playing' : 'paused') : 'none';
+}
+if (navigator.mediaSession) {
+  const mediaActions = { play: 'play', pause: 'pause', stop: 'pause',
+    previoustrack: 'up', nexttrack: 'down', seekbackward: 'up', seekforward: 'down' };
+  Object.entries(mediaActions).forEach(([mediaAction, action]) => {
+    try { navigator.mediaSession.setActionHandler(mediaAction, () => {
+      if (!remoteDialog.open) runRemoteAction(action);
+    }); } catch (_) { /* Unsupported action on this browser. */ }
+  });
+}
+
 
 // ── Save/Load Settings ──
 function saveSettings() {
